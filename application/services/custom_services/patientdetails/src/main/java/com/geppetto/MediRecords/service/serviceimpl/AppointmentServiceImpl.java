@@ -9,13 +9,12 @@ import java.util.List;
 import org.springframework.data.domain.PageRequest;
 import java.util.Map;
 import org.springframework.data.domain.Page;
-import com.geppetto.MediRecords.util.ConstructQuery;
+import com.geppetto.MediRecords.util.PatientDetailsUtil;
 import org.springframework.data.domain.Pageable;
 import java.util.stream.Collectors;
 import com.geppetto.MediRecords.repository.AppointmentRepository;
 import org.springframework.data.jpa.domain.Specification;
 
-import org.springframework.beans.BeanUtils;
 import org.springframework.stereotype.Service;
 import lombok.extern.slf4j.Slf4j;
 import lombok.RequiredArgsConstructor;
@@ -38,7 +37,7 @@ public class AppointmentServiceImpl implements AppointmentService {
     */
     private final AppointmentDao appointmentDao;
     private final AppointmentRepository appointmentRepository;
-    private final ConstructQuery constructQuery;
+    private final PatientDetailsUtil patientDetailsUtil;
 
   
     /**
@@ -49,13 +48,14 @@ public class AppointmentServiceImpl implements AppointmentService {
     */
     @Override
     public AppointmentDto  createAppointment(AppointmentDto appointmentDto) {
-    log.info("Entering createAppointment method");
-    Appointment appointment = new Appointment();
-    BeanUtils.copyProperties(appointmentDto, appointment);
-    Appointment createdAppointment = appointmentDao.createAppointment(appointment);
-    BeanUtils.copyProperties(createdAppointment, appointmentDto);
-    log.info("Exiting createAppointment method");
-    return appointmentDto;
+        log.info("Entering createAppointment method");
+    
+        Appointment appointment = patientDetailsUtil.toEntity(appointmentDto);
+        Appointment createdAppointment = appointmentDao.createAppointment(appointment);
+        appointmentDto = patientDetailsUtil.toDto(createdAppointment);
+
+        log.info("Exiting createAppointment method");
+        return appointmentDto;
     }
   
     /**
@@ -67,18 +67,19 @@ public class AppointmentServiceImpl implements AppointmentService {
     */
     @Override
     public AppointmentDto  getAppointmentById(String id) {
-    log.info("Entering getAppointmentById method for ID: {}", id);
-    return appointmentDao.getAppointmentById(id)
-        .map(appointment -> {
-            AppointmentDto dto = new AppointmentDto();
-            BeanUtils.copyProperties(appointment, dto);
-            log.info("Exiting getAppointmentById method for ID: {}", id);
-            return dto;
-        })
+        log.info("Entering getAppointmentById method for ID: {}", id);
+
+        Appointment appointment = appointmentDao.getAppointmentById(id)
         .orElseThrow(() -> {
             log.warn("No appointment found for ID: {}", id);
             return new EntityNotFoundException("Data not found for ID: " + id);
         });
+
+        AppointmentDto appointmentDto = patientDetailsUtil.toDto(appointment);
+        
+        log.info("Exiting getAppointmentById method for ID: {}", id);
+        return appointmentDto;
+            
     }
   
     /**
@@ -88,16 +89,17 @@ public class AppointmentServiceImpl implements AppointmentService {
     */
     @Override
     public Page<AppointmentDto>  getAllAppointment(int page, int size) {
-    log.info("Entering getAllAppointment method");
-    Pageable pageable = PageRequest.of(page, size);
-    Page<Appointment> appointmentPage = appointmentDao.getAllAppointment(pageable);
-    Page<AppointmentDto> appointmentDtoPage = appointmentPage.map(appointment -> {
-        AppointmentDto dto = new AppointmentDto();
-        BeanUtils.copyProperties(appointment, dto);
-        return dto;
-    });
-    log.info("Exiting getAllAppointment method");
-    return appointmentDtoPage;
+        log.info("Entering getAllAppointment method");
+
+        Pageable pageable = PageRequest.of(page, size);
+        Page<Appointment> appointmentPage = appointmentDao.getAllAppointment(pageable);
+        Page<AppointmentDto> appointmentDtoPage = appointmentPage.map(appointment -> {
+            AppointmentDto dto = patientDetailsUtil.toDto(appointment);
+            return dto;
+        });
+
+        log.info("Exiting getAllAppointment method");
+        return appointmentDtoPage;
     }
   
     /**
@@ -108,20 +110,16 @@ public class AppointmentServiceImpl implements AppointmentService {
     */
     @Override
     public List<AppointmentDto>  searchAppointment(Map<String, String> allParams) {
-    log.info("Entering searchAppointment method for SQL");
+        log.info("Entering searchAppointment method for SQL");
 
-    Specification<Appointment> specification = constructQuery.constructSearchQuery(allParams, Appointment.class);
-    List<Appointment> results = appointmentRepository.findAll(specification);
-    List<AppointmentDto> appointmentDtos = results.stream()
-        .map(appointment -> {
-            AppointmentDto dto = new AppointmentDto();
-            BeanUtils.copyProperties(appointment, dto);
-            return dto;
-        })
-        .collect(Collectors.toList());
+        Specification<Appointment> specification = patientDetailsUtil.constructSearchQuery(allParams, Appointment.class);
+        List<Appointment> results = appointmentRepository.findAll(specification);
+        List<AppointmentDto> appointmentDtos = results.stream()
+                .map(appointment -> patientDetailsUtil.toDto(appointment))
+                .collect(Collectors.toList());
 
-    log.info("Exiting searchAppointment method for SQL. Results found: {}", appointmentDtos.size());
-    return appointmentDtos;
+        log.info("Exiting searchAppointment method for SQL. Results found: {}", appointmentDtos.size());
+        return appointmentDtos;
     }
   
     /**
@@ -132,21 +130,21 @@ public class AppointmentServiceImpl implements AppointmentService {
     * @throws EntityNotFoundException If no appointment with the specified ID is found.
     */
     @Override
-    public AppointmentDto  updateAppointment(AppointmentDto appointmentDto) {
-    log.info("Entering updateAppointment method for ID: {}", appointmentDto.getId());
-    return appointmentDao.getAppointmentById(appointmentDto.getId())
-        .map(existingAppointment -> {
-            BeanUtils.copyProperties(appointmentDto, existingAppointment);
-            Appointment updatedAppointment = appointmentDao.createAppointment(existingAppointment);
-            AppointmentDto responseDto = new AppointmentDto();
-            BeanUtils.copyProperties(updatedAppointment, responseDto);
-            log.info("Exiting updateAppointment method for ID: {}", appointmentDto.getId());
-            return responseDto;
-        })
-        .orElseThrow(() -> {
-            log.warn("No appointment found for update with ID: {}", appointmentDto.getId());
-            return new EntityNotFoundException("Data not found for update with ID: " + appointmentDto.getId());
+    public AppointmentDto updateAppointment(AppointmentDto appointmentDto) {
+        String id = appointmentDto.getId();
+        log.info("Entering updateAppointment method for ID: {}", id);
+
+        appointmentDao.getAppointmentById(id).orElseThrow(() -> {
+            log.warn("No appointment found for update with ID: {}", id);
+            return new EntityNotFoundException("Data not found for update with ID: " + id);
         });
+
+        Appointment updatedAppointment = patientDetailsUtil.toEntity(appointmentDto);
+        updatedAppointment = appointmentDao.createAppointment(updatedAppointment);
+        AppointmentDto responseDto = patientDetailsUtil.toDto(updatedAppointment);
+
+        log.info("Exiting updateAppointment method for ID: {}", id);
+        return responseDto;
     }
   
     /**
@@ -158,18 +156,16 @@ public class AppointmentServiceImpl implements AppointmentService {
     */
     @Override
     public String  deleteAppointment(String id) {
-    log.info("Entering deleteAppointment method for ID: {}", id);
+        log.info("Entering deleteAppointment method for ID: {}", id);
 
-    Appointment appointment = appointmentDao.getAppointmentById(id)
-         .orElseThrow(() -> {
-             log.warn("No appointment found with ID: {}. Deletion failed.", id);
-             return new EntityNotFoundException("No appointment found with ID: " + id + ". Unable to delete.");
-         });
+        if (appointmentDao.getAppointmentById(id).isEmpty()) {
+            log.warn("No appointment found with ID: {}. Deletion failed.", id);
+            throw new EntityNotFoundException("No appointment found with ID: " + id + ". Unable to delete.");
+        }
+        appointmentDao.deleteAppointment(id);
 
-    appointmentDao.deleteAppointment(id);
-    log.info("Successfully deleted Appointment with ID: {}", id);
-
-       return "Appointment deleted successfully";
+        log.info("Successfully deleted Appointment with ID: {}", id);
+        return "Appointment deleted successfully";
     }
   
 }
