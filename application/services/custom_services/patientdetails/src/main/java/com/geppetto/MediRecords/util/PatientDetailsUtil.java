@@ -2,16 +2,18 @@ package com.geppetto.MediRecords.util;
 
 import org.springframework.stereotype.Component;
 import java.util.Map;
-import java.util.stream.Collectors;
 import java.util.List;
 import java.util.ArrayList;
 import jakarta.persistence.criteria.Predicate;
 import org.springframework.data.jpa.domain.Specification;
 
-
+import com.geppetto.MediRecords.dto.AppointmentDto;
+import com.geppetto.MediRecords.dto.BillingdetailsDto;
+import com.geppetto.MediRecords.model.Appointment;
+import com.geppetto.MediRecords.model.Billingdetails;
 
 @Component
-public class ConstructQuery {
+public class PatientDetailsUtil {
     
     
     /**
@@ -51,6 +53,42 @@ public class ConstructQuery {
 
             return criteriaBuilder.and(predicates.toArray(new Predicate[0]));
         };
+    }
+
+    public Appointment toEntity(AppointmentDto appointmentDto) {
+        return Appointment.builder()
+                .id(appointmentDto.getId())
+                .appointmentid(appointmentDto.getAppointmentid())
+                .patientid(appointmentDto.getPatientid())
+                .doctorname(appointmentDto.getDoctorname())
+                .build();
+    }
+
+    public AppointmentDto toDto(Appointment appointment) {
+        return AppointmentDto.builder()
+                .id(appointment.getId())
+                .appointmentid(appointment.getAppointmentid())
+                .patientid(appointment.getPatientid())
+                .doctorname(appointment.getDoctorname())
+                .build();
+    }
+
+    public Billingdetails toEntity(BillingdetailsDto billingdetailsDto) {
+        return Billingdetails.builder()
+                .id(billingdetailsDto.getId())
+                .billingid(billingdetailsDto.getBillingid())
+                .patientid(billingdetailsDto.getPatientid())
+                .paymentstatus(billingdetailsDto.getPaymentstatus())
+                .build();
+    }
+
+    public BillingdetailsDto toDto(Billingdetails billingdetails) {
+        return BillingdetailsDto.builder()
+                .id(billingdetails.getId())
+                .billingid(billingdetails.getBillingid())
+                .patientid(billingdetails.getPatientid())
+                .paymentstatus(billingdetails.getPaymentstatus())
+                .build();
     }
 
 }
